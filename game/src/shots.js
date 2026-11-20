@@ -1,7 +1,7 @@
 // ?shot= staging: deterministic scene setup + autopilot that plays the real
 // rules from a fixed seed, then leaves the game ready for its screenshot.
 // Nothing here fakes a pose — every shot is the live simulation, advanced.
-import { WORLD } from './config.js';
+import { WORLD, COMBAT } from './config.js';
 import { stepWorld, startGame } from './world.js';
 import { spawnParkedCar, syncCarMesh } from './vehicles.js';
 import { spawnPoliceCar } from './police.js';
@@ -96,8 +96,8 @@ export function applyShotStaging(state, shotName, seed) {
   }
 
   if (shotName === 'chase') {
-    // Mid-mission-2 escape, downtown avenue: player driving, two cruisers
-    // flanking whole in frame, traffic and walkers packed around them.
+    // Mid-mission-2 escape, downtown avenue: player driving, cruisers
+    // stacked up behind him, traffic and walkers packed around them.
     state.money = 400; state.xp = 100; state.missionsDone = 1;
     startMission(state, 1);
     const sedan = spawnParkedCar(state, 'sedan', 90, 60, 0, 0xc23b2e);
@@ -108,22 +108,40 @@ export function applyShotStaging(state, shotName, seed) {
       waypoints: [[90, 150], [-90, 150], [-90, -150], [90, -150]],
       index: 0,
     };
-    spawnPoliceCar(state, 0, 0, 'front');
-    spawnPoliceCar(state, 0, 0, 'side');
     state.wanted = 3;
     state.wantedTimer = 0;
-    boostDensityNear(state, 90, 40, 10, 12);
-    // A couple more cruisers further back for depth.
-    spawnPoliceCar(state, 90, 120, null);
+    // Drive the escape FIRST. The boost and the cruisers must be staged
+    // around where the car ENDS UP, not where it started: boosting first
+    // leaves the whole crowd 100 m behind by capture time, and cruisers
+    // spawned before the drive fall behind (28 m/s vs the player's 34).
     driveFor(state, 9);
-    // Rear chase camera for the cover: the lens sits ahead of the car and
-    // looks back down the avenue, so the player car fills the frame with
-    // the whole pursuit stacked up behind it.
     const car = state.player.inCar;
     const fx = Math.sin(car.angle), fz = Math.cos(car.angle);
-    const px = Math.cos(car.angle), pz = -Math.sin(car.angle);
-    state.camera.position.set(car.x + fx * 14 + px * 3, 4.5, car.z + fz * 14 + pz * 3);
-    state.camera.lookAt(car.x - fx * 12, 1.5, car.z - fz * 12);
+    const sx = Math.cos(car.angle), sz = -Math.sin(car.angle);
+    // Three cruisers close behind the car, in the camera's backward view:
+    // [metres behind, metres to the side]. Speed matched to the player's
+    // car so they hold the gap instead of falling away before the shot.
+    const copSlots = [[10, -3.5], [16, 4], [24, -2]];
+    for (const [behind, side] of copSlots) {
+      const cop = spawnPoliceCar(state, car.x, car.z, null);
+      cop.x = car.x - fx * behind + sx * side;
+      cop.z = car.z - fz * behind + sz * side;
+      cop.angle = car.angle;
+      cop.speed = car.speed;
+      syncCarMesh(cop);
+    }
+    // Dense traffic + walkers packed around the final position.
+    boostDensityNear(state, car.x, car.z, 12, 16);
+    driveFor(state, 0.4);
+    // Rear chase camera for the cover: the lens sits ahead of the car and
+    // looks back down the avenue, so the player car fills the frame with
+    // the whole pursuit stacked up behind it. Shot mode renders once
+    // after staging — no live loop runs after this, so this framing holds.
+    const car2 = state.player.inCar;
+    const fx2 = Math.sin(car2.angle), fz2 = Math.cos(car2.angle);
+    const px2 = Math.cos(car2.angle), pz2 = -Math.sin(car2.angle);
+    state.camera.position.set(car2.x + fx2 * 11 + px2 * 2.5, 4.0, car2.z + fz2 * 11 + pz2 * 2.5);
+    state.camera.lookAt(car2.x - fx2 * 12, 1.5, car2.z - fz2 * 12);
     return;
   }
 
@@ -137,34 +155,51 @@ export function applyShotStaging(state, shotName, seed) {
     state.wanted = 2;
     state.wantedTimer = 0;
     state.player.health = 83;
-    boostDensityNear(state, 150, -150, 2, 3);
+    boostDensityNear(state, 150, -150, 3, 5);
     // Walk the player onto the marker so the fight spawns, then fight.
     setPlayerOnFoot(state, 150, -150, 0);
     driveFor(state, 0.6);
-    // Aim + shoot in bursts for the rest of the staging.
-    for (let i = 0; i < 300; i++) {
+    // A short real fight — the old 5 s loop killed two Vipers and left the
+    // frame empty. Then restage the fight close to the lens.
+    for (let i = 0; i < 90; i++) {
       aimAtNearestEnemy(state);
       stepWorld(state, 1 / 60);
     }
+    // Restage: player at the crates, three Vipers flanking close in front.
+    setPlayerOnFoot(state, 150, -132, 0);
+    while (state.enemies.length < 3) state.combat.spawnEnemy(state, 150, -150);
+    // [x, z, fire delay]: nearest Viper 6 m dead ahead on the crosshair,
+    // two more flanking at ~9.5 m. Fire delays are staggered so all three
+    // muzzle flashes land in the last few steps before the screenshot.
+    const viperSpots = [[150, -126, 0.005], [144, -124.5, 0.02], [156, -124.5, 0.04]];
+    const placeVipers = (withFire) => {
+      for (let i = 0; i < 3; i++) {
+        const e = state.enemies[i];
+        const [ex, ez, ft] = viperSpots[i];
+        e.x = ex; e.z = ez;
+        e.angle = Math.atan2(state.player.x - ex, state.player.z - ez);
+        e.health = COMBAT.enemyHealth;
+        e.fireTimer = withFire ? ft : 99; // hold fire until the camera settles
+        e.muzzleT = 0;
+        e.mesh.position.set(ex, 0, ez);
+        e.mesh.rotation.y = e.angle;
+      }
+    };
+    placeVipers(false);
+    // Let the chase camera lerp onto the new position (it lags the teleport).
+    for (let i = 0; i < 30; i++) stepWorld(state, 1 / 60);
+    // Snap the Vipers back to their marks (they strafed during the settle),
+    // then let them open fire on the very last steps so the muzzle flashes
+    // are alive in the screenshot — and fire the player's pistol too.
+    placeVipers(true);
+    state.lastShotT = 0;
+    stepWorld(state, 1 / 60);
+    stepWorld(state, 1 / 60);
+    stepWorld(state, 1 / 60);
+    playerShoot(state);
     // Keep the escape reward on screen as proof of progression.
     state.missionBanner = 'HEAT ESCAPE COMPLETE  +$600  +150 XP';
     state.missionBannerT = 99;
-    // Final frame: put the last Viper in front of the player, facing him,
-    // downtown behind him — and let him fire on the very last step so the
-    // muzzle flash is alive in the screenshot.
-    const last = state.enemies[0];
-    if (last) {
-      setPlayerOnFoot(state, 150, -132, 0);
-      last.x = 150; last.z = -118;
-      last.angle = Math.PI;
-      last.mesh.position.set(150, 0, -118);
-      last.mesh.rotation.y = Math.PI;
-      last.fireTimer = 0.02;
-      state.lastShotT = 0;
-      stepWorld(state, 1 / 60);
-      stepWorld(state, 1 / 60);
-      playerShoot(state);
-    }
     return;
   }
 
