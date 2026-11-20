@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Solmar Bay — Open-World Crime Game</title>
+<link rel="icon" href="data:,">
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; background: #1a1410; font-family: Arial, Helvetica, sans-serif; }
+  #game { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; }
+  #hud { position: fixed; inset: 0; pointer-events: none; color: #fff; }
+  #hud-top-left { position: absolute; top: 14px; left: 16px; text-shadow: 0 2px 6px #000, 0 0 2px #000; }
+  #hud-money { font-size: 40px; font-weight: 900; color: #ffd21c; letter-spacing: 1px; }
+  #hud-sub { font-size: 17px; font-weight: 700; margin-top: 2px; }
+  #hud-objective { font-size: 19px; font-weight: 800; margin-top: 8px; color: #ffe9a8; max-width: 560px; }
+  #hud-top-right { position: absolute; top: 14px; right: 16px; text-align: right; text-shadow: 0 2px 6px #000; }
+  #hud-stars { font-size: 34px; letter-spacing: 4px; }
+  #hud-stars .star { color: rgba(255,255,255,0.25); }
+  #hud-stars .star.on { color: #ffd21c; }
+  #hud-health { width: 220px; height: 22px; margin-top: 6px; margin-left: auto; background: rgba(0,0,0,0.55); border: 2px solid #fff; position: relative; }
+  #hud-health-fill { height: 100%; width: 100%; background: #37d67a; }
+  #hud-health-text { position: absolute; inset: 0; text-align: center; font-size: 15px; font-weight: 900; line-height: 22px; }
+  #hud-banner { position: absolute; top: 118px; left: 50%; transform: translateX(-50%); font-size: 26px; font-weight: 900; color: #ffd21c; text-shadow: 0 2px 8px #000, 0 0 3px #000; text-align: center; max-width: 900px; }
+  #hud-message { position: absolute; top: 165px; left: 50%; transform: translateX(-50%); font-size: 20px; font-weight: 800; color: #fff; text-shadow: 0 2px 6px #000; text-align: center; }
+  #hud-bottom-left { position: absolute; left: 16px; bottom: 14px; text-shadow: 0 2px 6px #000; }
+  #hud-speed { font-size: 52px; font-weight: 900; line-height: 1; }
+  #hud-speed-unit { font-size: 16px; font-weight: 800; color: #ffd21c; }
+  #hud-prompt { font-size: 20px; font-weight: 900; margin-top: 6px; color: #7dff9a; }
+  #minimap { position: absolute; right: 16px; bottom: 14px; width: 220px; height: 220px; border: 3px solid rgba(255,255,255,0.85); border-radius: 6px; background: rgba(12,20,28,0.8); }
+  #hud-controls { position: absolute; bottom: 14px; left: 50%; transform: translateX(-50%); font-size: 15px; font-weight: 700; color: rgba(255,255,255,0.9); text-shadow: 0 1px 4px #000; }
+  #hud-crosshair { position: absolute; left: 50%; top: 50%; transform: translate(-50%,-50%); font-size: 30px; font-weight: 900; color: #fff; text-shadow: 0 0 4px #000; display: none; }
+  #title-screen, #pause-screen, #dead-screen, #busted-screen { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(10,8,6,0.45); }
+  #title-card { max-width: 760px; margin: 0 20px; background: rgba(12,10,8,0.82); border: 3px solid #ffd21c; border-radius: 12px; padding: 30px 36px; text-align: center; }
+  #title-name { font-size: 64px; font-weight: 900; color: #ffd21c; letter-spacing: 4px; text-shadow: 0 3px 0 #7a4a00; }
+  #title-tag { font-size: 18px; font-weight: 700; color: #ffe9a8; margin-top: 4px; }
+  #title-story { font-size: 17px; line-height: 1.45; margin-top: 14px; color: #fff; }
+  #title-best { font-size: 16px; font-weight: 700; color: #7dff9a; margin-top: 12px; }
+  #title-enter { font-size: 26px; font-weight: 900; color: #fff; margin-top: 18px; animation: blink 1.1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: 0.25; } }
+  #title-controls { font-size: 14px; margin-top: 16px; color: #ddd; line-height: 1.9; }
+  #title-controls b { color: #ffd21c; }
+  #pause-screen div, #dead-screen div, #busted-screen div { font-size: 44px; font-weight: 900; text-align: center; text-shadow: 0 3px 8px #000; }
+  #pause-screen span, #dead-screen span, #busted-screen span { font-size: 18px; font-weight: 700; color: #ffe9a8; }
+  #dead-screen div { color: #ff3b30; }
+  #busted-screen div { color: #7a86ff; }
+  #status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+</style>
+<script type="importmap">
+{ "imports": { "three": "./vendor/three/three.module.min.js" } }
+</script>
+</head>
+<body>
+<canvas id="game" aria-label="Solmar Bay: drive, steal cars, outrun the police and finish Mara's three jobs"></canvas>
+<div id="hud"></div>
+<p id="status" role="status" aria-live="polite"></p>
+<script type="module" src="./src/main.js"></script>
+</body>
+</html>
